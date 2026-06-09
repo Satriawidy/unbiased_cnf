@@ -42,15 +42,18 @@ def fp4int(model, x, logq, times, noises):
     for noise, t0, t1 in zip(noises, times[:-1], times[1:]):
         x = rk4int(model, x, logq, [t0, t1])
         noisy = noise / torch.sum(noise**2, tuple(range(2, len(noise.shape))), keepdims = True).sqrt()
-        # def func(x):
-        #     return rk4int(model, x, logq, [t1, t0])
+        def func(x):
+            return rk4int(model, x, logq, [t1, t0])
 
         # jvps = torch.stack([jvp(func, (x, ), (noisy[i], ))[1] for i in range(len(noisy))], 0)
+        def jvp_helper(nois):
+            return jvp(func, (x, ), (nois, ))[1]
+        jvps = vmap(jvp_helper)(noisy)
         
-        def func(x, nois):
-            return rk4int(model, x + nois, logq, [t1, t0]) - rk4int(model, x - nois, logq, [t1, t0])
+        # def func(x, nois):
+        #     return rk4int(model, x + nois, logq, [t1, t0]) - rk4int(model, x - nois, logq, [t1, t0])
         
-        jvps = vmap(func)(x.repeat(len(noisy), *repdim), noisy*1e-10)/2e-10
+        # jvps = vmap(func)(x.repeat(len(noisy), *repdim), noisy*1e-7)/(2e-7)
         logq = logq - torch.logsumexp(-vol * torch.log(torch.einsum('ba..., ba... -> ba', 
                                                                                  jvps, jvps).sqrt()), 0)
         logq = logq + torch.log(torch.tensor(len(noisy)))
