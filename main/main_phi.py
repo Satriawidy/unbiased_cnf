@@ -4,8 +4,8 @@ import torch
 import argparse
 import numpy as np
 from datetime import datetime
-from theory import create_gmm_ndim, create_gmm_normal
-from nn import MLPGMM, MLPGMMUnbias
+from theory import SimpleNormal, ScalarPhi4Action
+from nn import PHIAnalytic, PHIAnalyticUnbias
 from utils import join_paths
 from train import train_step
 from eval import eval_step
@@ -27,11 +27,11 @@ def main(args):
         output_dir = args.output_dir
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        details = f"{args.theory}_{args.network}_n{args.n}"
+        details = f"{args.theory}_{args.network}_L{args.L}_m2{args.m2}_lambda{args.lam}"
         run_name = args.run_name or (
             f"CNF_{details}_bs{args.bs}_lr{args.lr}_dt{args.dt}_eps{args.eps}_steps{args.steps}_integrator_{args.integrator}_{timestamp}"
         )
-        output_dir = join_paths(args.main_dir, f"results/cnf_gmm/{run_name}")
+        output_dir = join_paths(args.main_dir, f"results/cnf_phi/{run_name}")
     if output_dir and args.mode == "train":
         os.makedirs(output_dir, exist_ok=True)
 
@@ -49,36 +49,37 @@ def main(args):
             entity="lqft-flow",
         )
 
-    if args.network == "mlpgmm":
+    lattice_shape = (args.L, ) * 2
+    action = ScalarPhi4Action(M2 = args.m2, lam = args.lam)
+    prior = SimpleNormal(torch.zeros(lattice_shape), torch.ones(lattice_shape))
+    if args.network == "phi4analytic":
         if args.integrator == "unbiasv2":
-            model = MLPGMMUnbias(args.n, args.mlpgmm_hidden)
+            model = PHIAnalyticUnbias(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
+                                        args.n_basis, args.n_basis_bond)
         else:
-            model = MLPGMM(args.n, args.mlpgmm_hidden, args.num_noise)
-    
+            model = PHIAnalytic(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
+                                        args.n_basis, args.n_basis_bond, args.num_noise)
+            
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.t_max_scheduler, eta_min=args.lr_min)
 
+    times = torch.arange(0.0, 1.0 + args.dt*0.9, args.dt)
     integrator = args.integrator
     if integrator == "unbiasv2" or integrator == "unbiasv1":
         integrator = "unbias"
     
-
-    csv_path = join_paths(args.main_dir, f"results/cnf_result_gmm.csv")
+    csv_path = join_paths(args.main_dir, f"results/cnf_result_phi.csv")
     write_header = (not os.path.exists(csv_path)) or (os.path.getsize(csv_path) == 0)
     os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
     if args.mode == "train":
-        prior = create_gmm_ndim(args.n, rng)
-        action = create_gmm_normal(torch.zeros((1, args.n)))
-        times = torch.arange(1.0, -args.dt*0.9, -args.dt)
-
         history = {
             'loss' : [],
             'logp' : [],
             'logq' : [],
             'ess' : []
         }
-
+        
         for i in range(args.steps):
             train_step(model, action, prior, optimizer, history, times, integrator, args.eps,
                        args.bs, args.num_noise, args.num_checkpoint)
@@ -96,9 +97,9 @@ def main(args):
         
         torch.save(model.state_dict(), f"{output_dir}/state.pt")
 
-        results = eval_step(model, action, prior, times, integrator, "gmm", args.eps,
+        results = eval_step(model, action, prior, times, integrator, "phi", args.eps,
                        args.bs, args.num_noise, args.num_bootstrap)
-
+        
         row = {
                 "timestamp_eval": timestamp,
                 "dt_eval": args.dt,
@@ -106,13 +107,18 @@ def main(args):
                 "num_noise_eval": args.num_noise,
                 "integrator_eval": args.integrator,
                 "network": args.network,
-                "n": args.n,
+                "L": args.L,
+                "m2": args.m2,
+                "lambda": args.lam,
                 "dt": args.dt,
                 "eps": args.eps,
                 "bs": args.bs,
                 "integrator": args.integrator,
                 "num_noise": args.num_noise,
-                "hidden": args.mlpgmm_hidden,
+                "n_kernel": args.n_kernel,
+                "n_kernel_bond": args.n_kernel_bond,
+                "n_basis": args.n_basis,
+                "n_basis_bond": args.n_basis_bond,
                 "num_boots": args.num_bootstrap,
                 "logp_avg": results[0],
                 "logp_err": results[1],
@@ -126,20 +132,11 @@ def main(args):
                 "ess_err": results[9]
             }
     
-    
     elif args.mode == "eval":
-        prior = create_gmm_normal(torch.zeros((1, args.n)))
-        action = create_gmm_ndim(args.n, rng)
-        times = torch.arange(0.0, 1.0 + args.dt*0.9, args.dt)
-
         model.load_state_dict(torch.load(args.eval_path, weights_only=True))
 
-        results = eval_step(model, action, prior, times, integrator, "gmm", args.eps,
+        results = eval_step(model, action, prior, times, integrator, "phi", args.eps,
                        args.bs, args.num_noise, args.num_bootstrap)
-        
-        csv_path = join_paths(args.main_dir, f"results/cnf/result.csv")
-        write_header = (not os.path.exists(csv_path)) or (os.path.getsize(csv_path) == 0)
-        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
         row = {
                 "timestamp_eval": args.timestamp_eval,
@@ -148,13 +145,18 @@ def main(args):
                 "num_noise_eval": args.num_noise_eval,
                 "integrator_eval": args.integrator_eval,
                 "network": args.network,
-                "n": args.n,
+                "L": args.L,
+                "m2": args.m2,
+                "lambda": args.lam,
                 "dt": args.dt,
                 "eps": args.eps,
                 "bs": args.bs,
                 "integrator": args.integrator,
                 "num_noise": args.num_noise,
-                "hidden": args.mlpgmm_hidden,
+                "n_kernel": args.n_kernel,
+                "n_kernel_bond": args.n_kernel_bond,
+                "n_basis": args.n_basis,
+                "n_basis_bond": args.n_basis_bond,
                 "num_boots": args.num_bootstrap,
                 "logp_avg": results[0],
                 "logp_err": results[1],
@@ -175,14 +177,19 @@ def main(args):
             "num_noise_eval",
             "integrator_eval",
             "network",
-            "n",
+            "L",
+            "m2",
+            "lambda",
             "dt",
             "eps",
             "bs",
             "integrator",
             "num_noise",
+            "n_kernel",
+            "n_kernel_bond",
+            "n_basis",
+            "n_basis_bond",
             "num_boots",
-            "hidden",
             "logp_avg",
             "logp_err",
             "loss_avg",
@@ -225,24 +232,25 @@ def build_parser():
     parser.add_argument("--timestamp-eval", type=int, default=None, help="Timestamp to differentiate evaluated model.")
     parser.add_argument("--integrator-eval", type=str, default=None, help="Integrator of the evaluated model.")
 
-    parser.add_argument("--n", type=int, default=10, help="Number of dimension for GMM.")
-
+    parser.add_argument("--L", type=int, default=8, help="Linear lattice size for phi4.")
+    parser.add_argument("--m2", type=float, default=-4.0, help="Non-renormalised mass squared for phi4.")
+    parser.add_argument("--lam", type=float, default=6.008, help="Quartic coupling for phi4.")
+    
     parser.add_argument("--network", 
                         type=str, 
-                        default="mlpgmm",
-                        choices=["mlpgmm"])
+                        default="phi4analytic",
+                        choices=["phi4analytic"])
     
-    parser.add_argument("--mlpgmm-hidden",
-                        type=int,
-                        nargs="+",
-                        default=[64, 64],
-                        help="Hidden sizes for mlpgmm.",
-    )
+    parser.add_argument("--n-kernel", type=int, default=21, help="Number of Fourier kernels for phi4analytic.")
+    parser.add_argument("--n-kernel-bond", type=int, default=20, help="Number of Fourier kernel bonds for phi4analytic.")
+    parser.add_argument("--n-basis", type=int, default=20, help="Number of field expansion basis for phi4analytic.")
+    parser.add_argument("--n-basis-bond", type=int, default=20, help="Number of field expansion bonds for phi4analytic.")
     
     parser.add_argument("--integrator", 
                         type=str, 
                         default="unbiasv2", 
                         choices=["unbiasv1", "unbiasv2", "hutch", "exact", "fp"])
+    
     parser.add_argument("--bs", type=int, default=256, help="Batch size.")
     parser.add_argument("--dt", type=float, default=0.1, help="Integration time step.")
     parser.add_argument("--eps", type=float, default=0.25, help="Noise strength epsilon for Unbiased CNF.")
