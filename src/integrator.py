@@ -50,7 +50,7 @@ def fp4int(model, x, logq, times, noises):
         def func(x, nois):
             return rk4int(model, x + nois, logq, [t1, t0]) - rk4int(model, x - nois, logq, [t1, t0])
         
-        jvps = vmap(func)(x.repeat(len(noisy), *repdim), noisy * 1e-6)/2e-6
+        jvps = vmap(func)(x.repeat(len(noisy), *repdim), noisy*1e-10)/2e-10
         logq = logq - torch.logsumexp(-vol * torch.log(torch.einsum('ba..., ba... -> ba', 
                                                                                  jvps, jvps).sqrt()), 0)
         logq = logq + torch.log(torch.tensor(len(noisy)))
