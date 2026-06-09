@@ -68,7 +68,7 @@ module load cray-python
 source .cnf/bin/activate
 
 CMD=(
-  main_phi.py
+  python3 main/main_phi.py
   --mode "$MODE"
   --eval-path "$EVAL_PATH"
   --num-bootstrap "$NUM_BOOTSTRAP"

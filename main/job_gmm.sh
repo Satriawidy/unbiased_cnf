@@ -21,7 +21,7 @@ NUM_BOOTSTRAP=2000
 DT_EVAL=0.1
 EPS_EVAL=0.05
 NUM_NOISE_EVAL=10
-TIMESTAMP_EVAL=""
+TIMESTAMP_EVAL=0
 INTEGRATOR_EVAL=""
 
 # -----------------------------
@@ -63,7 +63,7 @@ module load cray-python
 source .cnf/bin/activate
 
 CMD=(
-  main_gmm.py
+  python3 main/main_gmm.py
   --mode "$MODE"
   --eval-path "$EVAL_PATH"
   --num-bootstrap "$NUM_BOOTSTRAP"
