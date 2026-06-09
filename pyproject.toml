@@ -25,4 +25,6 @@ dependencies = [
     "pandas",
     "tqdm",
     "wandb",
+    "torchdiffeq",
+    "torchsde"
 ]
