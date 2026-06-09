@@ -3,7 +3,7 @@
 #SBATCH -e reports/errors_%j
 #SBATCH -o reports/output_%j
 #SBATCH --gpus=1
-$SBATCH --array=0-4
+#SBATCH --array=0-4
 #SBATCH --time=01:00:00
 #SBATCH --chdir=/home/u6dn/s2601026.u6dn/annealing-work
 
