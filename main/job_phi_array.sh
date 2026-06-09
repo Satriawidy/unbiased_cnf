@@ -1,12 +1,25 @@
 #!/bin/bash
-#SBATCH --job-name=UnbiasedCNF
+#SBATCH --job-name=UnbiasedArrayCNF
 #SBATCH -e reports/errors_%j
 #SBATCH -o reports/output_%j
-#SBATCH --gpus-per-node=1
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
+#SBATCH --gpus=1
+$SBATCH --array=0-4
 #SBATCH --time=01:00:00
 #SBATCH --chdir=/home/u6dn/s2601026.u6dn/annealing-work
+
+# ---------------------------------------------------------
+# Array sweep: Integrator, dt, num_checkpoint and num_noise
+# ---------------------------------------------------------
+INT_VALUES=(unbiasv1 unbiasv2 exact hutch fp)
+DTS_VALUES=(0.0025 0.0025 0.01 0.01 0.01)
+CHK_VALUES=(100 100 25 25 25)
+NOS_VALUES=(1 1 1 16 1)
+TASK_ID="${SLURM_ARRAY_TASK_ID:-0}"
+
+if (( TASK_ID < 0 || TASK_ID >= ${#INT_VALUES[@]} )); then
+  echo "Invalid SLURM_ARRAY_TASK_ID=$TASK_ID for ${#INT_VALUES[@]} L values" >&2
+  exit 1
+fi
 
 # -----------------------------
 # Mode
@@ -43,20 +56,20 @@ N_BASIS_BOND=20
 # -----------------------------
 # Integrator
 # -----------------------------
-INTEGRATOR=unbiasv2
+INTEGRATOR="${INT_VALUES[$TASK_ID]}"
 BS=256
-DT=0.1
-EPS=0.05
-NUM_NOISE=10
-NUM_CHECKPOINT=20
+DT="${DTS_VALUES[$TASK_ID]}"
+EPS=0.00125
+NUM_NOISE="${NOS_VALUES[$TASK_ID]}"
+NUM_CHECKPOINT="${CHK_VALUES[$TASK_ID]}"
 
 # -----------------------------
 # Training
 # -----------------------------
 LR=5e-3
 LR_MIN=5e-4
-T_MAX_SCHEDULER=400
-STEPS=1000
+T_MAX_SCHEDULER=40
+STEPS=100
 
 # -----------------------------
 # Weight & Biases
@@ -102,7 +115,7 @@ if [[ "$USE_WANDB" == "1" ]]; then
   CMD+=(--use-wandb)
 fi
 
-echo "Launching Neural PT with:"
+echo "Array task ${TASK_ID}: INT=${INTEGRATOR}"
 printf ' %q' "${CMD[@]}"
 echo
 

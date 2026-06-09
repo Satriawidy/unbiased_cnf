@@ -29,7 +29,8 @@ def main(args):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         details = f"PHI_{args.network}_L{args.L}_m2{args.m2}_lambda{args.lam}"
         run_name = args.run_name or (
-            f"CNF_{details}_bs{args.bs}_lr{args.lr}_dt{args.dt}_eps{args.eps}_steps{args.steps}_integrator_{args.integrator}_{timestamp}"
+            f"CNF_{details}_bs{args.bs}_lr{args.lr}_dt{args.dt}_eps{args.eps}_steps{args.steps}"
+            f"_integrator_{args.integrator}_noise{args.num_noise}_{timestamp}"
         )
         output_dir = join_paths(args.main_dir, f"results/cnf_phi/{run_name}")
     if output_dir and args.mode == "train":

@@ -19,7 +19,7 @@ def eval_step(model, action, prior, times, mode, theory,
             x, logq = torchdiffeq.odeint(model, (x, logq), times, method='rk4')
             x, logq = x[-1], logq[-1]
         else:
-            x, logq = rk4int(model, x, logq, times)
+            x, logq = rk4int(model, x, logq, times, div='exact')
         
         logp = action.log_prob(x)
 
