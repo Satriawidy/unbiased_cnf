@@ -27,7 +27,7 @@ def main(args):
         output_dir = args.output_dir
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        details = f"{args.theory}_{args.network}_n{args.n}"
+        details = f"GMM_{args.network}_n{args.n}"
         run_name = args.run_name or (
             f"CNF_{details}_bs{args.bs}_lr{args.lr}_dt{args.dt}_eps{args.eps}_steps{args.steps}_integrator_{args.integrator}_{timestamp}"
         )
