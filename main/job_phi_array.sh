@@ -5,7 +5,7 @@
 #SBATCH --gpus=1
 #SBATCH --array=0-4
 #SBATCH --time=01:00:00
-#SBATCH --chdir=/home/u6dn/s2601026.u6dn/annealing-work
+#SBATCH --chdir=/home/u6dn/s2601026.u6dn/unbiased_cnf
 
 # ---------------------------------------------------------
 # Array sweep: Integrator, dt, num_checkpoint and num_noise

@@ -6,7 +6,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=01:00:00
-#SBATCH --chdir=/home/u6dn/s2601026.u6dn/annealing-work
+#SBATCH --chdir=/home/u6dn/s2601026.u6dn/unbiased_cnf
 
 # -----------------------------
 # Mode
