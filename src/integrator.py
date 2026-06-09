@@ -1,5 +1,5 @@
 import torch
-from torch.func import jvp
+from torch.func import jvp, vmap
 from torch.utils.checkpoint import checkpoint
 
 def sdeint(model, x, logq, eps, times, noises):
@@ -38,13 +38,19 @@ def fp4int(model, x, logq, times, noises):
     vol = 1
     for j in x.shape[1:]:
         vol *= j
+    repdim = (1, ) * len(x.shape)
     for noise, t0, t1 in zip(noises, times[:-1], times[1:]):
         x = rk4int(model, x, logq, [t0, t1])
         noisy = noise / torch.sum(noise**2, tuple(range(2, len(noise.shape))), keepdims = True).sqrt()
-        def func(x):
-            return rk4int(model, x, logq, [t1, t0])
+        # def func(x):
+        #     return rk4int(model, x, logq, [t1, t0])
 
-        jvps = torch.stack([jvp(func, (x, ), (noisy[i], ))[1] for i in range(len(noisy))], 0)
+        # jvps = torch.stack([jvp(func, (x, ), (noisy[i], ))[1] for i in range(len(noisy))], 0)
+        
+        def func(x, nois):
+            return rk4int(model, x + nois, logq, [t1, t0]) - rk4int(model, x - nois, logq, [t1, t0])
+        
+        jvps = vmap(func)(x.repeat(len(noisy), *repdim), noisy * 1e-6)/2e-6
         logq = logq - torch.logsumexp(-vol * torch.log(torch.einsum('ba..., ba... -> ba', 
                                                                                  jvps, jvps).sqrt()), 0)
         logq = logq + torch.log(torch.tensor(len(noisy)))
