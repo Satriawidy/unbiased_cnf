@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unbiased_cnf"
+version = "0.1.0"
+authors = [
+    {name = "Elia Cellini", email = "elia.cellini@ed.ac.uk"},
+    {name = "Gurtej Kanwar", email = "gurtejkanwar@ed.ac.uk"},
+    {name = "Satria Widyanto", email = "s.w.-@sms.ed.ac.uk"},
+]
+
+description = "Code for Unbiased CNF project."
+readme = "README.md"
+dependencies = [
+    "matplotlib",
+    "numpy",
+    "torch",
+    "jupyter",
+    "ipython",
+    "scipy",
+    "autograd",
+    "numdifftools",
+    "pandas",
+    "tqdm",
+    "wandb",
+]
