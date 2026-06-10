@@ -139,14 +139,14 @@ class PHIAnalyticUnbias(nn.Module):
                 else:
                     return dx[0] - self.eps * dx[1], -dlogJ[0] + self.eps * dlogJ[1]
             elif div == "hutch":
-                epsilon = self.noise.sample((self.hutch, 2, state[0].shape[0]))
-                jvp = torch.autograd.grad(dx, state[0].repeat(2, 1, 1, 1), epsilon, 
+                epsilon = self.noise.sample((self.hutch, state[0].shape[0]))
+                jvp = torch.autograd.grad(dx[0], state[0], epsilon, 
                                           allow_unused=True,create_graph=True,is_grads_batched=True)[0]
-                dlogJ = torch.einsum('bcaij,bcaij->ca', jvp, epsilon) / self.hutch
+                dlogJ = torch.einsum('baij,baij->a', jvp, epsilon) / self.hutch
                 if reverse == True:
-                    return dx[0] + self.eps * dx[1], -dlogJ[0] - self.eps * dlogJ[1]
+                    return dx[0], -dlogJ
                 else:
-                    return dx[0] - self.eps * dx[1], -dlogJ[0] + self.eps * dlogJ[1]
+                    return dx[0], -dlogJ
 
 
 #----------------GMM vectorf field architecture----------------------#
