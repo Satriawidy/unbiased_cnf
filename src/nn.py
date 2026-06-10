@@ -130,7 +130,8 @@ class PHIAnalyticUnbias(nn.Module):
                 else:
                     return dx[0] - self.eps * dx[1]
             elif div == "exact":
-                y = torch.concat((torch.ones(x_lin.shape).repeat(2, 1, 1, 1).unsqueeze(dim=-1), torch.cos(wf) * self.f), dim=-1)
+                y = torch.concat((torch.ones(x_lin.shape).repeat(2, 1, 1, 1).unsqueeze(dim=-1), 
+                                  torch.einsum('baijx, bx -> baijx', torch.cos(wf), self.f)), dim=-1)
                 yy = torch.einsum('aijx, yx -> aijy', y, self.F)
                 dlogJ = torch.einsum('aijx, ijijx -> a', yy, ww)
                 if reverse == True:

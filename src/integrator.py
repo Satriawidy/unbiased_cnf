@@ -5,10 +5,10 @@ from torch.utils.checkpoint import checkpoint
 def sdeint(model, x, logq, eps, times, noises):
     for noise, t0, t1 in zip(noises[:-1], times[:-1], times[1:]):
         dt = t1 - t0
-        drift = model.forward(t0, (x, logq), reverse=False, div="None", eps=eps)
+        drift = model.forward(t0, (x, logq), reverse=False, div="None")
         P = noise * torch.sqrt(2 * eps * torch.abs(dt))
         x = x + drift * dt + P
-        M = (model.forward(t0, (x, logq), reverse=True, div="None",  eps=eps) - drift) * dt - P
+        M = (model.forward(t0, (x, logq), reverse=True, div="None") - drift) * dt - P
         Rp = torch.einsum('i..., i... -> i', P, P) / (4 * eps * torch.abs(dt))
         Rm = torch.einsum('i..., i... -> i', M, M) / (4 * eps * torch.abs(dt))
         logq = logq - Rp + Rm
