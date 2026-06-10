@@ -132,15 +132,16 @@ class PHIAnalyticUnbias(nn.Module):
             elif div == "exact":
                 y = torch.concat((torch.ones(x_lin.shape).repeat(2, 1, 1, 1).unsqueeze(dim=-1), 
                                   torch.einsum('baijx, bx -> baijx', torch.cos(wf), self.f)), dim=-1)
-                yy = torch.einsum('aijx, yx -> aijy', y, self.F)
-                dlogJ = torch.einsum('aijx, ijijx -> a', yy, ww)
+                yy = torch.einsum('baijx, byx -> baijy', y, self.F)
+                dlogJ = torch.einsum('baijx, ijijx -> ba', yy, ww)
                 if reverse == True:
                     return dx[0] + self.eps * dx[1], -dlogJ[0] - self.eps * dlogJ[1]
                 else:
                     return dx[0] - self.eps * dx[1], -dlogJ[0] + self.eps * dlogJ[1]
             elif div == "hutch":
                 epsilon = self.noise.sample((self.hutch, 2, state[0].shape[0]))
-                jvp = torch.autograd.grad(dx, state[0], epsilon, allow_unused=True,create_graph=True,is_grads_batched=True)[0]
+                jvp = torch.autograd.grad(dx, state[0].repeat(2, *state[0].shape), epsilon, 
+                                          allow_unused=True,create_graph=True,is_grads_batched=True)[0]
                 dlogJ = torch.einsum('bcaij,bcaij->ca', jvp, epsilon) / self.hutch
                 if reverse == True:
                     return dx[0] + self.eps * dx[1], -dlogJ[0] - self.eps * dlogJ[1]
