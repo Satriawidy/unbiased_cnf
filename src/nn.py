@@ -133,7 +133,7 @@ class PHIAnalyticUnbias(nn.Module):
                 y = torch.concat((torch.ones(x_lin.shape).repeat(2, 1, 1, 1).unsqueeze(dim=-1), 
                                   torch.einsum('baijx, bx -> baijx', torch.cos(wf), self.f)), dim=-1)
                 yy = torch.einsum('baijx, byx -> baijy', y, self.F)
-                dlogJ = torch.einsum('baijx, ijijx -> ba', yy, ww)
+                dlogJ = torch.einsum('baijx, ijijxb -> ba', yy, ww)
                 if reverse == True:
                     return dx[0] + self.eps * dx[1], -dlogJ[0] - self.eps * dlogJ[1]
                 else:
