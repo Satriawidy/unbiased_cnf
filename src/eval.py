@@ -23,11 +23,15 @@ def eval_step(model, action, prior, times, mode, theory,
         
         logp = action.log_prob(x)
 
-        boots = torch.mean(logp[torch.randint(len(x), size=(Nboot, len(x)))], -1)
+        logw = logp - logq
+        
+        w = torch.exp(logw - torch.logsumexp(logw, 0))
+        
+        inds = torch.multinomial(w, Nboot * len(x), replacement = True).reshape(Nboot, len(x))
+        boots = torch.mean(logp[inds], -1)
         logp_mean = boots.mean()
         logp_stdr = boots.std()
         
-        logw = logp - logq
         boots = torch.mean(-logw[torch.randint(len(x), size=(Nboot, len(x)))], -1)
         loss_mean = boots.mean()
         loss_stdr = boots.std()
@@ -52,7 +56,8 @@ def eval_step(model, action, prior, times, mode, theory,
 
         if theory == "phi":
             susc = torch.mean(x, (-1, -2))**2
-            boots = torch.mean(susc[torch.randint(len(x), size=(Nboot, len(x)))], -1)
+            inds = torch.multinomial(w, Nboot * len(x), replacement = True).reshape(Nboot, len(x))
+            boots = torch.mean(susc[inds], -1)
             susc_mean = boots.mean()
             susc_stdr = boots.std()
             results += [susc_mean.item(), susc_stdr.item()]
