@@ -173,8 +173,8 @@ def main(args):
                 "free_err": results[7],
                 "ess_avg": results[8],
                 "ess_err": results[9],
-                "magn_avg": results[10],
-                "magn_err": results[11]
+                "susc_avg": results[10],
+                "susc_err": results[11]
             }
 
         fieldnames = [
@@ -207,8 +207,8 @@ def main(args):
                 "free_err",
                 "ess_avg",
                 "ess_err",
-                "magn_avg",
-                "magn_err"
+                "susc_avg",
+                "susc_err"
             ]
 
         write_header = (not os.path.exists(csv_path)) or (os.path.getsize(csv_path) == 0)

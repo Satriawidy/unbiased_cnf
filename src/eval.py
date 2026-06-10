@@ -51,10 +51,10 @@ def eval_step(model, action, prior, times, mode, theory,
                ess_mean.item(), ess_stdr.item()]
 
         if theory == "phi":
-            magn = torch.mean(x, (-1, -2))
-            boots = torch.mean(magn[torch.randint(len(x), size=(Nboot, len(x)))], -1)
-            magn_mean = boots.mean()
-            magn_stdr = boots.std()
-            results += [magn_mean.item(), magn_stdr.item()]
+            susc = torch.mean(x, (-1, -2))**2
+            boots = torch.mean(susc[torch.randint(len(x), size=(Nboot, len(x)))], -1)
+            susc_mean = boots.mean()
+            susc_stdr = boots.std()
+            results += [susc_mean.item(), susc_stdr.item()]
 
     return results
