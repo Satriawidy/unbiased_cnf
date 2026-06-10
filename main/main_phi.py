@@ -54,12 +54,18 @@ def main(args):
     action = ScalarPhi4Action(M2 = args.m2, lam = args.lam)
     prior = SimpleNormal(torch.zeros(lattice_shape), torch.ones(lattice_shape))
     if args.network == "phi4analytic":
+        # if args.integrator == "unbiasv2":
+        #     model = PHIAnalyticUnbias(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
+        #                                 args.n_basis, args.n_basis_bond)
+        # else:
+        #     model = PHIAnalytic(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
+        #                                 args.n_basis, args.n_basis_bond, args.num_noise)
         if args.integrator == "unbiasv2":
             model = PHIAnalyticUnbias(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
-                                        args.n_basis, args.n_basis_bond)
+                                    args.n_basis, args.n_basis_bond, args.num_noise, args.eps)
         else:
-            model = PHIAnalytic(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
-                                        args.n_basis, args.n_basis_bond, args.num_noise)
+            model = PHIAnalyticUnbias(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
+                                    args.n_basis, args.n_basis_bond, args.num_noise, 0)
             
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.t_max_scheduler, eta_min=args.lr_min)
@@ -96,8 +102,8 @@ def main(args):
         
         torch.save(model.state_dict(), f"{output_dir}/state.pt")
 
-        results = eval_step(model, action, prior, times, integrator, "phi", args.eps,
-                       args.bs, args.num_noise, args.num_bootstrap)
+        # results = eval_step(model, action, prior, times, integrator, "phi", args.eps,
+        #                args.bs, args.num_noise, args.num_bootstrap)
         
         # row = {
         #         "timestamp_eval": timestamp,
