@@ -241,7 +241,7 @@ def build_parser():
     parser.add_argument("--dt-eval", type=float, default=0.1, help="Integration time step of the evaluated model.")
     parser.add_argument("--eps-eval", type=float, default=0.25, help="Noise strength epsilon for Unbiased CNF of the evaluated model.")
     parser.add_argument("--num-noise-eval", type=int, default=10, help="Number of noise estimator for hutchinson/fp of the evaluated model.")
-    parser.add_argument("--timestamp-eval", type=int, default=None, help="Timestamp to differentiate evaluated model.")
+    parser.add_argument("--timestamp-eval", type=str, default=None, help="Timestamp to differentiate evaluated model.")
     parser.add_argument("--integrator-eval", type=str, default=None, help="Integrator of the evaluated model.")
 
     parser.add_argument("--L", type=int, default=8, help="Linear lattice size for phi4.")
