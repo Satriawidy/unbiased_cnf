@@ -135,9 +135,9 @@ class PHIAnalyticUnbias(nn.Module):
                 yy = torch.einsum('baijx, byx -> baijy', y, self.F)
                 dlogJ = torch.einsum('baijx, ijijxb -> ba', yy, ww)
                 if reverse == True:
-                    return dx[0] + self.eps * dx[1], -dlogJ[0] - self.eps * dlogJ[1]
+                    return dx[0], -dlogJ[0]
                 else:
-                    return dx[0] - self.eps * dx[1], -dlogJ[0] + self.eps * dlogJ[1]
+                    return dx[0], -dlogJ[0]
             elif div == "hutch":
                 epsilon = self.noise.sample((self.hutch, state[0].shape[0]))
                 jvp = torch.autograd.grad(dx[0], state[0], epsilon, 
