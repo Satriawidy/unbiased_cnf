@@ -70,8 +70,6 @@ def main(args):
         integrator = "unbias"
     
     csv_path = join_paths(args.main_dir, f"results/cnf_result_phi.csv")
-    write_header = (not os.path.exists(csv_path)) or (os.path.getsize(csv_path) == 0)
-    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
     if args.mode == "train":
         history = {
@@ -101,37 +99,37 @@ def main(args):
         results = eval_step(model, action, prior, times, integrator, "phi", args.eps,
                        args.bs, args.num_noise, args.num_bootstrap)
         
-        row = {
-                "timestamp_eval": timestamp,
-                "dt_eval": args.dt,
-                "eps_eval": args.eps,
-                "num_noise_eval": args.num_noise,
-                "integrator_eval": args.integrator,
-                "network": args.network,
-                "L": args.L,
-                "m2": args.m2,
-                "lambda": args.lam,
-                "dt": args.dt,
-                "eps": args.eps,
-                "bs": args.bs,
-                "integrator": args.integrator,
-                "num_noise": args.num_noise,
-                "n_kernel": args.n_kernel,
-                "n_kernel_bond": args.n_kernel_bond,
-                "n_basis": args.n_basis,
-                "n_basis_bond": args.n_basis_bond,
-                "num_boots": args.num_bootstrap,
-                "logp_avg": results[0],
-                "logp_err": results[1],
-                "loss_avg": results[2],
-                "loss_err": results[3],
-                "part_avg": results[4],
-                "part_err": results[5],
-                "free_avg": results[6],
-                "free_err": results[7],
-                "ess_avg": results[8],
-                "ess_err": results[9]
-            }
+        # row = {
+        #         "timestamp_eval": timestamp,
+        #         "dt_eval": args.dt,
+        #         "eps_eval": args.eps,
+        #         "num_noise_eval": args.num_noise,
+        #         "integrator_eval": args.integrator,
+        #         "network": args.network,
+        #         "L": args.L,
+        #         "m2": args.m2,
+        #         "lambda": args.lam,
+        #         "dt": args.dt,
+        #         "eps": args.eps,
+        #         "bs": args.bs,
+        #         "integrator": args.integrator,
+        #         "num_noise": args.num_noise,
+        #         "n_kernel": args.n_kernel,
+        #         "n_kernel_bond": args.n_kernel_bond,
+        #         "n_basis": args.n_basis,
+        #         "n_basis_bond": args.n_basis_bond,
+        #         "num_boots": args.num_bootstrap,
+        #         "logp_avg": results[0],
+        #         "logp_err": results[1],
+        #         "loss_avg": results[2],
+        #         "loss_err": results[3],
+        #         "part_avg": results[4],
+        #         "part_err": results[5],
+        #         "free_avg": results[6],
+        #         "free_err": results[7],
+        #         "ess_avg": results[8],
+        #         "ess_err": results[9]
+        #     }
     
     elif args.mode == "eval":
         model.load_state_dict(torch.load(args.eval_path, weights_only=True))
@@ -168,46 +166,53 @@ def main(args):
                 "free_avg": results[6],
                 "free_err": results[7],
                 "ess_avg": results[8],
-                "ess_err": results[9]
+                "ess_err": results[9],
+                "magn_avg": results[10],
+                "magn_err": results[11]
             }
 
-    fieldnames = [
-            "timestamp_eval",
-            "dt_eval",
-            "eps_eval",
-            "num_noise_eval",
-            "integrator_eval",
-            "network",
-            "L",
-            "m2",
-            "lambda",
-            "dt",
-            "eps",
-            "bs",
-            "integrator",
-            "num_noise",
-            "n_kernel",
-            "n_kernel_bond",
-            "n_basis",
-            "n_basis_bond",
-            "num_boots",
-            "logp_avg",
-            "logp_err",
-            "loss_avg",
-            "loss_err",
-            "part_avg",
-            "part_err",
-            "free_avg",
-            "free_err",
-            "ess_avg",
-            "ess_err"
-        ]
+        fieldnames = [
+                "timestamp_eval",
+                "dt_eval",
+                "eps_eval",
+                "num_noise_eval",
+                "integrator_eval",
+                "network",
+                "L",
+                "m2",
+                "lambda",
+                "dt",
+                "eps",
+                "bs",
+                "integrator",
+                "num_noise",
+                "n_kernel",
+                "n_kernel_bond",
+                "n_basis",
+                "n_basis_bond",
+                "num_boots",
+                "logp_avg",
+                "logp_err",
+                "loss_avg",
+                "loss_err",
+                "part_avg",
+                "part_err",
+                "free_avg",
+                "free_err",
+                "ess_avg",
+                "ess_err",
+                "magn_avg",
+                "magn_err"
+            ]
 
-    with open(csv_path, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        if write_header:
-            writer.writeheader()
-        writer.writerow(row)
+        write_header = (not os.path.exists(csv_path)) or (os.path.getsize(csv_path) == 0)
+        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+
+        with open(csv_path, "a", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
 
 
 def build_parser():
