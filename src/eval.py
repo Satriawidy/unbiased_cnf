@@ -27,8 +27,15 @@ def eval_step(model, action, prior, times, mode, theory,
         
         w = torch.exp(logw - torch.logsumexp(logw, 0))
         
-        inds = torch.multinomial(w, Nboot * len(x), replacement = True).reshape(Nboot, len(x))
-        boots = torch.mean(logp[inds], -1)
+        # inds = torch.multinomial(w, Nboot * len(x), replacement = True).reshape(Nboot, len(x))
+        # boots = torch.mean(logp[inds], -1)
+        # logp_mean = boots.mean()
+        # logp_stdr = boots.std()
+
+        inds = torch.randint(len(x), size=(Nboot, len(x)))
+        logws = logw[inds]
+        ws = torch.exp(logws - torch.logsumexp(logws, -1, keepdim=True))
+        boots = torch.sum(logp[inds] * ws, -1)
         logp_mean = boots.mean()
         logp_stdr = boots.std()
         
@@ -56,10 +63,19 @@ def eval_step(model, action, prior, times, mode, theory,
 
         if theory == "phi":
             susc = torch.mean(x, (-1, -2))**2
-            inds = torch.multinomial(w, Nboot * len(x), replacement = True).reshape(Nboot, len(x))
-            boots = torch.mean(susc[inds], -1)
+
+            # inds = torch.multinomial(w, Nboot * len(x), replacement = True).reshape(Nboot, len(x))
+            # boots = torch.mean(susc[inds], -1)
+            # susc_mean = boots.mean()
+            # susc_stdr = boots.std()
+
+            inds = torch.randint(len(x), size=(Nboot, len(x)))
+            logws = logw[inds]
+            ws = torch.exp(logws - torch.logsumexp(logws, -1, keepdim=True))
+            boots = torch.sum(susc[inds] * ws, -1)
             susc_mean = boots.mean()
             susc_stdr = boots.std()
+
             results += [susc_mean.item(), susc_stdr.item()]
 
     return results
