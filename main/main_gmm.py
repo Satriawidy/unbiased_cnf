@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 from datetime import datetime
 from theory import create_gmm_ndim, create_gmm_normal
-from nn import MLPGMM, MLPGMMUnbias
+from nn import MLPGMMUnbias
 from utils import join_paths
 from train import train_step
 from eval import eval_step
