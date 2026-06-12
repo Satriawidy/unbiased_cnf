@@ -54,12 +54,6 @@ def main(args):
     action = ScalarPhi4Action(M2 = args.m2, lam = args.lam)
     prior = SimpleNormal(torch.zeros(lattice_shape), torch.ones(lattice_shape))
     if args.network == "phi4analytic":
-        # if args.integrator == "unbiasv2":
-        #     model = PHIAnalyticUnbias(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
-        #                                 args.n_basis, args.n_basis_bond)
-        # else:
-        #     model = PHIAnalytic(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
-        #                                 args.n_basis, args.n_basis_bond, args.num_noise)
         if args.integrator == "unbiasv2":
             model = PHIAnalyticUnbias(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
                                     args.n_basis, args.n_basis_bond, args.num_noise, args.eps)
@@ -102,41 +96,6 @@ def main(args):
         
         torch.save(model.state_dict(), f"{output_dir}/state.pt")
 
-        # results = eval_step(model, action, prior, times, integrator, "phi", args.eps,
-        #                args.bs, args.num_noise, args.num_bootstrap)
-        
-        # row = {
-        #         "timestamp_eval": timestamp,
-        #         "dt_eval": args.dt,
-        #         "eps_eval": args.eps,
-        #         "num_noise_eval": args.num_noise,
-        #         "integrator_eval": args.integrator,
-        #         "network": args.network,
-        #         "L": args.L,
-        #         "m2": args.m2,
-        #         "lambda": args.lam,
-        #         "dt": args.dt,
-        #         "eps": args.eps,
-        #         "bs": args.bs,
-        #         "integrator": args.integrator,
-        #         "num_noise": args.num_noise,
-        #         "n_kernel": args.n_kernel,
-        #         "n_kernel_bond": args.n_kernel_bond,
-        #         "n_basis": args.n_basis,
-        #         "n_basis_bond": args.n_basis_bond,
-        #         "num_boots": args.num_bootstrap,
-        #         "logp_avg": results[0],
-        #         "logp_err": results[1],
-        #         "loss_avg": results[2],
-        #         "loss_err": results[3],
-        #         "part_avg": results[4],
-        #         "part_err": results[5],
-        #         "free_avg": results[6],
-        #         "free_err": results[7],
-        #         "ess_avg": results[8],
-        #         "ess_err": results[9]
-        #     }
-    
     elif args.mode == "eval":
         model.load_state_dict(torch.load(args.eval_path, weights_only=True))
 

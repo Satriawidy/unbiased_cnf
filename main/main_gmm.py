@@ -52,9 +52,9 @@ def main(args):
 
     if args.network == "mlpgmm":
         if args.integrator == "unbiasv2":
-            model = MLPGMMUnbias(args.n, args.mlpgmm_hidden)
+            model = MLPGMMUnbias(args.n, args.mlpgmm_hidden, args.num_noise, args.eps)
         else:
-            model = MLPGMM(args.n, args.mlpgmm_hidden, args.num_noise)
+            model = MLPGMMUnbias(args.n, args.mlpgmm_hidden, args.num_noise, 0)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.t_max_scheduler, eta_min=args.lr_min)
@@ -63,10 +63,7 @@ def main(args):
     if integrator == "unbiasv2" or integrator == "unbiasv1":
         integrator = "unbias"
     
-
     csv_path = join_paths(args.main_dir, f"results/cnf_result_gmm.csv")
-    write_header = (not os.path.exists(csv_path)) or (os.path.getsize(csv_path) == 0)
-    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
     if args.mode == "train":
         prior = create_gmm_ndim(args.n, rng)
@@ -96,37 +93,6 @@ def main(args):
                 scheduler.step()
         
         torch.save(model.state_dict(), f"{output_dir}/state.pt")
-
-        results = eval_step(model, action, prior, times, integrator, "gmm", args.eps,
-                       args.bs, args.num_noise, args.num_bootstrap)
-
-        row = {
-                "timestamp_eval": timestamp,
-                "dt_eval": args.dt,
-                "eps_eval": args.eps,
-                "num_noise_eval": args.num_noise,
-                "integrator_eval": args.integrator,
-                "network": args.network,
-                "n": args.n,
-                "dt": args.dt,
-                "eps": args.eps,
-                "bs": args.bs,
-                "integrator": args.integrator,
-                "num_noise": args.num_noise,
-                "hidden": args.mlpgmm_hidden,
-                "num_boots": args.num_bootstrap,
-                "logp_avg": results[0],
-                "logp_err": results[1],
-                "loss_avg": results[2],
-                "loss_err": results[3],
-                "part_avg": results[4],
-                "part_err": results[5],
-                "free_avg": results[6],
-                "free_err": results[7],
-                "ess_avg": results[8],
-                "ess_err": results[9]
-            }
-    
     
     elif args.mode == "eval":
         prior = create_gmm_normal(torch.zeros((1, args.n)))
@@ -138,10 +104,6 @@ def main(args):
         results = eval_step(model, action, prior, times, integrator, "gmm", args.eps,
                        args.bs, args.num_noise, args.num_bootstrap)
         
-        csv_path = join_paths(args.main_dir, f"results/cnf/result.csv")
-        write_header = (not os.path.exists(csv_path)) or (os.path.getsize(csv_path) == 0)
-        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-
         row = {
                 "timestamp_eval": args.timestamp_eval,
                 "dt_eval": args.dt_eval,
@@ -169,38 +131,41 @@ def main(args):
                 "ess_err": results[9]
             }
 
-    fieldnames = [
-            "timestamp_eval",
-            "dt_eval",
-            "eps_eval",
-            "num_noise_eval",
-            "integrator_eval",
-            "network",
-            "n",
-            "dt",
-            "eps",
-            "bs",
-            "integrator",
-            "num_noise",
-            "num_boots",
-            "hidden",
-            "logp_avg",
-            "logp_err",
-            "loss_avg",
-            "loss_err",
-            "part_avg",
-            "part_err",
-            "free_avg",
-            "free_err",
-            "ess_avg",
-            "ess_err"
-        ]
+        fieldnames = [
+                "timestamp_eval",
+                "dt_eval",
+                "eps_eval",
+                "num_noise_eval",
+                "integrator_eval",
+                "network",
+                "n",
+                "dt",
+                "eps",
+                "bs",
+                "integrator",
+                "num_noise",
+                "num_boots",
+                "hidden",
+                "logp_avg",
+                "logp_err",
+                "loss_avg",
+                "loss_err",
+                "part_avg",
+                "part_err",
+                "free_avg",
+                "free_err",
+                "ess_avg",
+                "ess_err"
+            ]
+        
+        write_header = (not os.path.exists(csv_path)) or (os.path.getsize(csv_path) == 0)
+        os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
-    with open(csv_path, "a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        if write_header:
-            writer.writeheader()
-        writer.writerow(row)
+        with open(csv_path, "a", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
 
 
 def build_parser():
@@ -223,7 +188,7 @@ def build_parser():
     parser.add_argument("--dt-eval", type=float, default=0.1, help="Integration time step of the evaluated model.")
     parser.add_argument("--eps-eval", type=float, default=0.25, help="Noise strength epsilon for Unbiased CNF of the evaluated model.")
     parser.add_argument("--num-noise-eval", type=int, default=10, help="Number of noise estimator for hutchinson/fp of the evaluated model.")
-    parser.add_argument("--timestamp-eval", type=int, default=None, help="Timestamp to differentiate evaluated model.")
+    parser.add_argument("--timestamp-eval", type=str, default=None, help="Timestamp to differentiate evaluated model.")
     parser.add_argument("--integrator-eval", type=str, default=None, help="Integrator of the evaluated model.")
 
     parser.add_argument("--n", type=int, default=10, help="Number of dimension for GMM.")
@@ -244,6 +209,7 @@ def build_parser():
                         type=str, 
                         default="unbiasv2", 
                         choices=["unbiasv1", "unbiasv2", "hutch", "exact", "fp"])
+    
     parser.add_argument("--bs", type=int, default=256, help="Batch size.")
     parser.add_argument("--dt", type=float, default=0.1, help="Integration time step.")
     parser.add_argument("--eps", type=float, default=0.25, help="Noise strength epsilon for Unbiased CNF.")

@@ -226,14 +226,14 @@ class MLPGMMUnbias(nn.Module):
                              randomness='different')(state[0], T.repeat(len(state[0]))).squeeze()
                 dlogJ = torch.einsum('ijkk -> ji', dlogJ)
                 if reverse == True:
-                    return jvp_x[:,0] + self.eps * jvp_x[:,1], -dlogJ[0] - self.eps * dlogJ[1]
+                    return jvp_x[:,0], -dlogJ[0]
                 else:
-                    return jvp_x[:,0] - self.eps * jvp_x[:,1], -dlogJ[0] + self.eps * dlogJ[1]
+                    return jvp_x[:,0], -dlogJ[0]
             elif div == "hutch":
-                epsilon = torch.randn((self.hutch, 2) + state[0].shape)
-                jvp = torch.autograd.grad(jvp_x, state[0], epsilon, allow_unused=True,create_graph=True,is_grads_batched=True)[0]
-                dlogJ = torch.einsum('bca...,bca...->ca', jvp, epsilon) / self.hutch
+                epsilon = torch.randn((self.hutch) + state[0].shape)
+                jvp = torch.autograd.grad(jvp_x[:, 0], state[0], epsilon, allow_unused=True,create_graph=True,is_grads_batched=True)[0]
+                dlogJ = torch.einsum('ba...,ba...->a', jvp, epsilon) / self.hutch
                 if reverse == True:
-                    return jvp_x[:,0] + self.eps * jvp_x[:,1], -dlogJ[0] - self.eps * dlogJ[1]
+                    return jvp_x[:,0], -dlogJ[0]
                 else:
-                    return jvp_x[:,0] - self.eps * jvp_x[:,1], -dlogJ[0] + self.eps * dlogJ[1]
+                    return jvp_x[:,0], -dlogJ[0]
