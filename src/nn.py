@@ -234,6 +234,6 @@ class MLPGMMUnbias(nn.Module):
                 jvp = torch.autograd.grad(jvp_x[:, 0], state[0], epsilon, allow_unused=True,create_graph=True,is_grads_batched=True)[0]
                 dlogJ = torch.einsum('ba...,ba...->a', jvp, epsilon) / self.hutch
                 if reverse == True:
-                    return jvp_x[:,0], -dlogJ[0]
+                    return jvp_x[:,0], -dlogJ
                 else:
-                    return jvp_x[:,0], -dlogJ[0]
+                    return jvp_x[:,0], -dlogJ
