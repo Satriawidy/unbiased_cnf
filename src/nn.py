@@ -230,7 +230,7 @@ class MLPGMMUnbias(nn.Module):
                 else:
                     return jvp_x[:,0], -dlogJ[0]
             elif div == "hutch":
-                epsilon = torch.randn((self.hutch) + state[0].shape)
+                epsilon = torch.randn((self.hutch, ) + state[0].shape)
                 jvp = torch.autograd.grad(jvp_x[:, 0], state[0], epsilon, allow_unused=True,create_graph=True,is_grads_batched=True)[0]
                 dlogJ = torch.einsum('ba...,ba...->a', jvp, epsilon) / self.hutch
                 if reverse == True:
