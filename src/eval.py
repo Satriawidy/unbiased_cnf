@@ -15,7 +15,7 @@ def eval_step(model, action, prior, times, mode, theory,
             x, logq = fp4val(model, x, logq, times, num_fp_noise)
         elif mode == 'hutch':
             options = {'step_size': times[1]-times[0]}
-            x, logq = torchdiffeq.odeint(model, (x, logq), [times[0], times[-1]], 
+            x, logq = torchdiffeq.odeint(model, (x, logq), torch.tensor([times[0], times[-1]]), 
                                          method='rk4', options = options)
             x, logq = x[-1], logq[-1]
         else:

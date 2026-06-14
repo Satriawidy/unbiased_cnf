@@ -19,7 +19,7 @@ def train_step(model, action, prior, optimizer, metrics, times, mode,
     elif mode == 'hutch':
         # x, logq = torchdiffeq.odeint_adjoint(model, (x, logq), times, method='rk4')
         options = {'step_size': times[1]-times[0]}
-        x, logq = torchdiffeq.odeint_adjoint(model, (x, logq), [times[0], times[-1]], 
+        x, logq = torchdiffeq.odeint_adjoint(model, (x, logq), torch.tensor([times[0], times[-1]]), 
                                              method='rk4', options = options)
         x, logq = x[-1], logq[-1]
     else:
