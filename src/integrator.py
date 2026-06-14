@@ -82,3 +82,40 @@ def fp4int_checkpoint(model, x, logq, times, noises, n):
                              noises[m:m+n+1], use_reentrant=False)
         m = m + n
     return x, logq
+
+def sdeval(model, x, logq, eps, times):
+    for t0, t1 in zip(times[:-1], times[1:]):
+        dt = t1 - t0
+        drift = model.forward(t0, (x, logq), reverse=False, div="None")
+        P = torch.randn(x.shape) * torch.sqrt(2 * eps * torch.abs(dt))
+        x_next = x + drift * dt + P
+        x_next = x_next.detach()
+        M = (model.forward(t0, (x_next, logq), reverse=True, div="None") - drift) * dt - P
+        Rp = torch.einsum('i..., i... -> i', P, P) / (4 * eps * torch.abs(dt))
+        Rm = torch.einsum('i..., i... -> i', M, M) / (4 * eps * torch.abs(dt))
+        logq_next = logq-Rp + Rm
+        logq = logq_next.detach()
+        x = x_next
+    return x, logq
+
+def fp4val(model, x, logq, times, num_noise):
+    vol = 1
+    for j in x.shape[1:]:
+        vol *= j
+    repdim = (1, ) * len(x.shape)
+    for t0, t1 in zip(times[:-1], times[1:]):
+        x = rk4int(model, x, logq, [t0, t1])
+        noise = torch.randn(num_noise, *x.shape)
+        noisy = noise / torch.sum(noise**2, tuple(range(2, len(noise.shape))), keepdims = True).sqrt()
+        def func(x):
+            return rk4int(model, x, logq, [t1, t0])
+
+        # jvps = torch.stack([jvp(func, (x, ), (noisy[i], ))[1] for i in range(len(noisy))], 0)
+        def jvp_helper(nois):
+            return jvp(func, (x, ), (nois, ))[1]
+        jvps = vmap(jvp_helper)(noisy)
+        
+        logq = logq - torch.logsumexp(-vol * torch.log(torch.einsum('ba..., ba... -> ba', 
+                                                                                 jvps, jvps).sqrt()), 0)
+        logq = logq + torch.log(torch.tensor(len(noisy)))
+    return x, logq

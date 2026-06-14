@@ -1,6 +1,6 @@
 import torchdiffeq
 import torch
-from integrator import sdeint, rk4int, fp4int
+from integrator import sdeint, rk4int, fp4int, sdeval, fp4val
 from utils import grab, calc_dkl, compute_ess
 
 def eval_step(model, action, prior, times, mode, theory,
@@ -10,11 +10,9 @@ def eval_step(model, action, prior, times, mode, theory,
         logq = prior.log_prob(x)
 
         if mode == 'unbias':
-            noises = torch.randn(len(times), *x.shape)
-            x, logq = sdeint(model, x, logq, eps, times, noises)
+            x, logq = sdeval(model, x, logq, eps, times)
         elif mode == 'fp':
-            noises = torch.randn(len(times), num_fp_noise, *x.shape)
-            x, logq = fp4int(model, x, logq, times, noises)
+            x, logq = fp4val(model, x, logq, times, num_fp_noise)
         elif mode == 'hutch':
             x, logq = torchdiffeq.odeint(model, (x, logq), times, method='rk4')
             x, logq = x[-1], logq[-1]
@@ -25,7 +23,7 @@ def eval_step(model, action, prior, times, mode, theory,
 
         logw = logp - logq
         
-        w = torch.exp(logw - torch.logsumexp(logw, 0))
+        # w = torch.exp(logw - torch.logsumexp(logw, 0))
         
         # inds = torch.multinomial(w, Nboot * len(x), replacement = True).reshape(Nboot, len(x))
         # boots = torch.mean(logp[inds], -1)
@@ -62,17 +60,27 @@ def eval_step(model, action, prior, times, mode, theory,
                ess_mean.item(), ess_stdr.item()]
 
         if theory == "phi":
-            susc = torch.mean(x, (-1, -2))**2
+            # susc = torch.mean(x, (-1, -2))**2
 
-            # inds = torch.multinomial(w, Nboot * len(x), replacement = True).reshape(Nboot, len(x))
-            # boots = torch.mean(susc[inds], -1)
+            # # inds = torch.multinomial(w, Nboot * len(x), replacement = True).reshape(Nboot, len(x))
+            # # boots = torch.mean(susc[inds], -1)
+            # # susc_mean = boots.mean()
+            # # susc_stdr = boots.std()
+
+            # inds = torch.randint(len(x), size=(Nboot, len(x)))
+            # logws = logw[inds]
+            # ws = torch.exp(logws - torch.logsumexp(logws, -1, keepdim=True))
+            # boots = torch.sum(susc[inds] * ws, -1)
             # susc_mean = boots.mean()
             # susc_stdr = boots.std()
+
+            susc = torch.mean(x, (-1, -2))
 
             inds = torch.randint(len(x), size=(Nboot, len(x)))
             logws = logw[inds]
             ws = torch.exp(logws - torch.logsumexp(logws, -1, keepdim=True))
-            boots = torch.sum(susc[inds] * ws, -1)
+            boots = torch.sum((susc[inds]**2) * ws, -1) - torch.sum(susc[inds] * ws, -1)**2
+            boots = boots * (x.shape[1]**2)
             susc_mean = boots.mean()
             susc_stdr = boots.std()
 
