@@ -241,7 +241,6 @@ class MLPGMMUnbias(nn.Module):
 class ResGMMUnbias(nn.Module):
     def __init__(self, dim, hidden, depth=0, hutch=1, eps=0):
         super().__init__()
-        hidden = [dim + 1] + hidden + [2 * dim]
         self.layer0 = nn.Sequential(nn.Linear(dim + 1, hidden[0], bias=True),
                                     nn.GELU())
         self.layers = []
@@ -253,8 +252,7 @@ class ResGMMUnbias(nn.Module):
             layers.append(nn.Linear(hidden[-2], hidden[-1], bias=True))
             self.layers.append(nn.Sequential(*nn.ModuleList(layers)))
         
-        self.layer1 = nn.Sequential(nn.Linear(hidden[0], 2 * dim, bias=True),
-                                    nn.GELU())
+        self.layer1 = nn.Sequential(nn.Linear(hidden[0], 2 * dim, bias=True))
         self.dim = dim
         self.eps = eps
         self.hutch = hutch
