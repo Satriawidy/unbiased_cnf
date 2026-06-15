@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 from datetime import datetime
 from theory import create_gmm_ndim, create_gmm_normal
-from nn import MLPGMMUnbias
+from nn import MLPGMMUnbias, ResGMMUnbias
 from utils import join_paths
 from train import train_step
 from eval import eval_step
@@ -55,6 +55,12 @@ def main(args):
             model = MLPGMMUnbias(args.n, args.mlpgmm_hidden, args.num_noise, args.eps)
         else:
             model = MLPGMMUnbias(args.n, args.mlpgmm_hidden, args.num_noise, 0)
+    
+    if args.network == "resgmm":
+        if args.integrator == "unbiasv2":
+            model = ResGMMUnbias(args.n, args.resgmm_hidden, args.resgmm_depth, args.num_noise, args.eps)
+        else:
+            model = ResGMMUnbias(args.n, args.resgmm_hidden, args.resgmm_depth, args.num_noise, 0)
     
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.t_max_scheduler, eta_min=args.lr_min)
@@ -117,7 +123,9 @@ def main(args):
                 "bs": args.bs,
                 "integrator": args.integrator,
                 "num_noise": args.num_noise,
-                "hidden": args.mlpgmm_hidden,
+                "mlp_hidden": args.mlpgmm_hidden,
+                "res_hidden": args.resgmm_hidden,
+                "res_depth": args.resgmm_depth,
                 "num_boots": args.num_bootstrap,
                 "logp_avg": results[0],
                 "logp_err": results[1],
@@ -145,7 +153,9 @@ def main(args):
                 "integrator",
                 "num_noise",
                 "num_boots",
-                "hidden",
+                "mlp_hidden",
+                "res_hidden",
+                "res_depth",
                 "logp_avg",
                 "logp_err",
                 "loss_avg",
@@ -196,7 +206,7 @@ def build_parser():
     parser.add_argument("--network", 
                         type=str, 
                         default="mlpgmm",
-                        choices=["mlpgmm"])
+                        choices=["mlpgmm", "resgmm"])
     
     parser.add_argument("--mlpgmm-hidden",
                         type=int,
@@ -204,7 +214,16 @@ def build_parser():
                         default=[64, 64],
                         help="Hidden sizes for mlpgmm.",
     )
-    
+
+    parser.add_argument("--resgmm-hidden",
+                        type=int,
+                        nargs="+",
+                        default=[64, 256, 64],
+                        help="Hidden sizes for resgmm.",
+    )
+
+    parser.add_argument("--resgmm-depth", type=int, default=3, help="Residual block depth for resgmm.")
+
     parser.add_argument("--integrator", 
                         type=str, 
                         default="unbiasv2", 

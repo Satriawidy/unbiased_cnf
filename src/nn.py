@@ -237,3 +237,61 @@ class MLPGMMUnbias(nn.Module):
                     return jvp_x[:,0], -dlogJ
                 else:
                     return jvp_x[:,0], -dlogJ
+
+class ResGMMUnbias(nn.Module):
+    def __init__(self, dim, hidden, depth=0, hutch=1, eps=0):
+        super().__init__()
+        hidden = [dim + 1] + hidden + [2 * dim]
+        self.layer0 = nn.Sequential(nn.Linear(dim + 1, hidden[0], bias=True),
+                                    nn.GELU())
+        self.layers = []
+        for i in range(depth):
+            layers = []
+            for i in range(len(hidden) - 2):
+                layers.append(nn.Linear(hidden[i], hidden[i + 1], bias=True))
+                layers.append(nn.GELU())
+            layers.append(nn.Linear(hidden[-2], hidden[-1], bias=True))
+            self.layers.append(nn.Sequential(*nn.ModuleList(layers)))
+        
+        self.layer1 = nn.Sequential(nn.Linear(hidden[0], 2 * dim, bias=True),
+                                    nn.GELU())
+        self.dim = dim
+        self.eps = eps
+        self.hutch = hutch
+        self.depth = depth
+
+    def forward(self, T, state, reverse=False, div = "hutch", eps = 0):
+        def single_drift(x, t):
+            inp = torch.cat([x, t.unsqueeze(0)])
+            inp = self.layer0(inp)
+            for i in range(self.depth):
+                inp = inp + self.layers[i](inp)
+            return self.layer1(inp).reshape(2, self.dim)
+        
+        with torch.set_grad_enabled(True):
+            if div == "hutch":
+                state[0].requires_grad_(True)
+            jvp_x = vmap(single_drift, in_dims=(0, 0), out_dims=(0), 
+                            randomness='different')(state[0], T.repeat(len(state[0]))).squeeze()
+                
+            if div == "None":
+                if reverse == True:
+                    return jvp_x[:,0] + self.eps * jvp_x[:,1]
+                else:
+                    return jvp_x[:,0] - self.eps * jvp_x[:,1]
+            elif div == "exact":
+                dlogJ = vmap(jacfwd(single_drift, argnums=0), out_dims=(0), 
+                             randomness='different')(state[0], T.repeat(len(state[0]))).squeeze()
+                dlogJ = torch.einsum('ijkk -> ji', dlogJ)
+                if reverse == True:
+                    return jvp_x[:,0], -dlogJ[0]
+                else:
+                    return jvp_x[:,0], -dlogJ[0]
+            elif div == "hutch":
+                epsilon = torch.randn((self.hutch, ) + state[0].shape)
+                jvp = torch.autograd.grad(jvp_x[:, 0], state[0], epsilon, allow_unused=True,create_graph=True,is_grads_batched=True)[0]
+                dlogJ = torch.einsum('ba...,ba...->a', jvp, epsilon) / self.hutch
+                if reverse == True:
+                    return jvp_x[:,0], -dlogJ
+                else:
+                    return jvp_x[:,0], -dlogJ
