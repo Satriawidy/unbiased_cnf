@@ -1,0 +1,171 @@
+import os
+import csv
+import torch
+import argparse
+import numpy as np
+from datetime import datetime
+from theory import SimpleNormal, ScalarPhi4Action
+from nn import PHIAnalyticUnbias
+from utils import join_paths
+from train import train_step
+from eval import eval_step
+
+if torch.cuda.is_available():
+    torch_device = 'cuda'
+    float_dtype = np.float32 #single
+    torch.set_default_tensor_type(torch.cuda.FloatTensor)
+else:
+    torch_device = 'cpu'
+    float_dtype = np.float32 #double
+    torch.set_default_tensor_type(torch.DoubleTensor)
+print(f"TORCH DEVICE: {torch_device}")
+
+rng = torch.Generator(device = torch_device).manual_seed(42)
+
+def main(args):
+    if args.output_dir:
+        output_dir = args.output_dir
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        details = f"PHI_{args.network}_L{args.L}_m2{args.m2}_lambda{args.lam}"
+        run_name = args.run_name or (
+            f"CNF_{details}_bs{args.bs}_lr{args.lr}_dt{args.dt}_eps{args.eps}_steps{args.steps}"
+            f"_integrator_{args.integrator}_noise{args.num_noise}_{timestamp}"
+        )
+        output_dir = join_paths(args.main_dir, f"results/cnf_phi/{run_name}")
+    if output_dir and args.mode == "train":
+        os.makedirs(output_dir, exist_ok=True)
+
+    wandb_run = None
+    if args.use_wandb:
+        try:
+            import wandb
+        except ImportError as exc:
+            raise RuntimeError("wandb is not installed. Install dependencies or disable --use-wandb.") from exc
+        wandb_name = args.run_name if args.run_name else os.path.basename(output_dir)
+        wandb_run = wandb.init(
+            project=args.wandb_project,
+            name=wandb_name,
+            config=vars(args),
+            entity="lqft-flow",
+        )
+
+    lattice_shape = (args.L, ) * 2
+    action = ScalarPhi4Action(M2 = args.m2, lam = args.lam)
+    prior = SimpleNormal(torch.zeros(lattice_shape), torch.ones(lattice_shape))
+    if args.network == "phi4analytic":
+        if args.integrator == "unbiasv2":
+            model = PHIAnalyticUnbias(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
+                                    args.n_basis, args.n_basis_bond, args.num_noise, args.eps)
+        else:
+            model = PHIAnalyticUnbias(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
+                                    args.n_basis, args.n_basis_bond, args.num_noise, 0)
+            
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.t_max_scheduler, eta_min=args.lr_min)
+
+    times = torch.arange(0.0, 1.0 + args.dt*0.9, args.dt)
+    integrator = args.integrator
+    if integrator == "unbiasv2" or integrator == "unbiasv1":
+        integrator = "unbias"
+    
+    csv_path = join_paths(args.main_dir, f"results/cnf_result_phi.csv")
+
+    if args.mode == "train":
+        history = {
+            'loss' : [],
+            'logp' : [],
+            'logq' : [],
+            'ess' : []
+        }
+        
+        for i in range(args.steps):
+            train_step(model, action, prior, optimizer, history, times, integrator, args.eps,
+                       args.bs, args.num_noise, args.num_checkpoint)
+
+            if wandb_run is not None:
+                wandb_data = {'loss': history['loss'][-1],
+                            'logp': history['logp'][-1].mean(),
+                            'logq': history['logq'][-1].mean(),
+                            'ess': history['ess'][-1],
+                            'lr': optimizer.param_groups[0]["lr"]}
+                wandb_run.log(wandb_data, step=i + 1)
+            
+            if i < args.t_max_scheduler:
+                scheduler.step()
+        
+        torch.save(model.state_dict(), f"{output_dir}/state.pt")
+
+    elif args.mode == "eval":
+        model.load_state_dict(torch.load(args.eval_path, weights_only=True))
+
+        results, susc, logw = eval_step(model, action, prior, times, integrator, "phi", args.eps,
+                                        args.bs, args.num_noise, args.num_bootstrap)
+
+        npy_dir = join_paths(args.main_dir, f"results/npy/L{args.L}_inteval{args.integrator_eval}_integrator{args.integrator}_dt{args.dt}_bs{args.bs}_noise_{args.num_noise}")
+        os.makedirs(os.path.dirname(npy_dir), exist_ok=True)
+        np.save(susc.detach().cpu().numpy(), f'{npy_dir}/susc.npy')
+        np.save(logw.detach().cpu().numpy(), f'{npy_dir}/logw.npy')
+
+def build_parser():
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    parser = argparse.ArgumentParser(
+        description="Train/eval a CNF method on certain theory"
+    )
+    parser.add_argument(
+        "--main-dir",
+        type=str,
+        default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        help="Project/output root directory.",
+    )
+    parser.add_argument("--output-dir", type=str, default=None, help="Optional output directory.")
+    parser.add_argument("--run-name", type=str, default="", help="Optional label for this run.")
+    parser.add_argument("--mode", type=str, default="train", choices=["train", "eval"])
+
+    parser.add_argument("--eval-path", type=str, default="None", help="Path for model to be evaluated.")
+    parser.add_argument("--num-bootstrap", type=int, default=2000, help="Number of bootstrap resample for evaluation.")
+    parser.add_argument("--dt-eval", type=float, default=0.1, help="Integration time step of the evaluated model.")
+    parser.add_argument("--eps-eval", type=float, default=0.25, help="Noise strength epsilon for Unbiased CNF of the evaluated model.")
+    parser.add_argument("--num-noise-eval", type=int, default=10, help="Number of noise estimator for hutchinson/fp of the evaluated model.")
+    parser.add_argument("--timestamp-eval", type=str, default=None, help="Timestamp to differentiate evaluated model.")
+    parser.add_argument("--integrator-eval", type=str, default=None, help="Integrator of the evaluated model.")
+
+    parser.add_argument("--L", type=int, default=8, help="Linear lattice size for phi4.")
+    parser.add_argument("--m2", type=float, default=-4.0, help="Non-renormalised mass squared for phi4.")
+    parser.add_argument("--lam", type=float, default=6.008, help="Quartic coupling for phi4.")
+    
+    parser.add_argument("--network", 
+                        type=str, 
+                        default="phi4analytic",
+                        choices=["phi4analytic"])
+    
+    parser.add_argument("--n-kernel", type=int, default=21, help="Number of Fourier kernels for phi4analytic.")
+    parser.add_argument("--n-kernel-bond", type=int, default=20, help="Number of Fourier kernel bonds for phi4analytic.")
+    parser.add_argument("--n-basis", type=int, default=20, help="Number of field expansion basis for phi4analytic.")
+    parser.add_argument("--n-basis-bond", type=int, default=20, help="Number of field expansion bonds for phi4analytic.")
+    
+    parser.add_argument("--integrator", 
+                        type=str, 
+                        default="unbiasv2", 
+                        choices=["unbiasv1", "unbiasv2", "hutch", "exact", "fp"])
+    
+    parser.add_argument("--bs", type=int, default=256, help="Batch size.")
+    parser.add_argument("--dt", type=float, default=0.1, help="Integration time step.")
+    parser.add_argument("--eps", type=float, default=0.25, help="Noise strength epsilon for Unbiased CNF.")
+    parser.add_argument("--num-noise", type=int, default=10, help="Number of noise estimator for hutchinson/fp.")
+    parser.add_argument("--num-checkpoint", type=int, default=20, help="Number of checkpoints for the gradient.")
+
+    parser.add_argument("--lr", type=float, default=5e-3, help="Learning rate at the beginning.")
+    parser.add_argument("--lr-min", type=float, default=5e-4, help="Learning rate at the end of cosine anneal scheduler.")
+    parser.add_argument("--t-max-scheduler", type=int, default=400, help="Number of steps to anneal from initial to minimal lr.")
+    parser.add_argument("--steps", type=int, default=1000, help="Number of training steps.")
+
+    parser.add_argument("--use-wandb", action="store_true", help="Enable Weights & Biases logging")
+    parser.add_argument("--wandb-project", type=str, default="cnf-explore", help="wandb project name")
+
+    return parser
+
+if __name__ == "__main__":
+    parser = build_parser()
+    args = parser.parse_args()
+    main(args)
