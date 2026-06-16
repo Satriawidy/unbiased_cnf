@@ -99,8 +99,8 @@ def main(args):
     elif args.mode == "eval":
         model.load_state_dict(torch.load(args.eval_path, weights_only=True))
 
-        results = eval_step(model, action, prior, times, integrator, "phi", args.eps,
-                       args.bs, args.num_noise, args.num_bootstrap)
+        results, susc, logw, twop = eval_step(model, action, prior, times, integrator, "phi", args.eps,
+                                        args.bs, args.num_noise, args.num_bootstrap)
 
         row = {
                 "timestamp_eval": args.timestamp_eval,

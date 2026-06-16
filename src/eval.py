@@ -77,6 +77,7 @@ def eval_step(model, action, prior, times, mode, theory,
             # susc_stdr = boots.std()
 
             susc = torch.mean(x, (-1, -2))
+            twop = torch.sum(x, -1)
 
             inds = torch.randint(len(x), size=(Nboot, len(x)))
             logws = logw[inds]
@@ -87,6 +88,6 @@ def eval_step(model, action, prior, times, mode, theory,
             susc_stdr = boots.std()
 
             results += [susc_mean.item(), susc_stdr.item()]
-            return results, susc, logw
+            return results, susc, logw, twop * twop[:, 0]
 
     return results
