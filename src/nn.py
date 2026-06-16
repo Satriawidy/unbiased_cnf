@@ -246,10 +246,9 @@ class ResGMMUnbias(nn.Module):
         self.layers = []
         for i in range(depth):
             layers = []
-            for i in range(len(hidden) - 2):
+            for i in range(len(hidden) - 1):
                 layers.append(nn.Linear(hidden[i], hidden[i + 1], bias=True))
                 layers.append(nn.GELU())
-            layers.append(nn.Linear(hidden[-2], hidden[-1], bias=True))
             self.layers.append(nn.Sequential(*nn.ModuleList(layers)))
         
         self.layer1 = nn.Sequential(nn.Linear(hidden[0], 2 * dim, bias=True))
