@@ -87,5 +87,6 @@ def eval_step(model, action, prior, times, mode, theory,
             susc_stdr = boots.std()
 
             results += [susc_mean.item(), susc_stdr.item()]
+            return results, susc, logw
 
     return results
