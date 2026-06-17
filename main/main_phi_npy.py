@@ -102,7 +102,7 @@ def main(args):
         results, susc, logw, twop = eval_step(model, action, prior, times, integrator, "phi", args.eps,
                                         args.bs, args.num_noise, args.num_bootstrap)
 
-        npy_dir = join_paths(args.main_dir, f"results/npy/L{args.L}_inteval{args.integrator_eval}_integrator{args.integrator}_dt{args.dt}_bs{args.bs}_noise_{args.num_noise}")
+        npy_dir = join_paths(args.main_dir, f"results/npy/L{args.L}_inteval{args.integrator_eval}_integrator{args.integrator}_dt{args.dt}_eps{args.eps}_bs{args.bs}_noise_{args.num_noise}")
         os.makedirs(os.path.dirname(join_paths(npy_dir, f"susc.npy")), exist_ok=True)
         np.save(f'{npy_dir}/susc.npy', susc.detach().cpu().numpy())
         np.save(f'{npy_dir}/logw.npy', logw.detach().cpu().numpy())
