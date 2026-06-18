@@ -39,7 +39,11 @@ def eval_step(model, action, prior, times, mode, theory,
         logp_mean = boots.mean()
         logp_stdr = boots.std()
         
-        boots = torch.mean(-logw[torch.randint(len(x), size=(Nboot, len(x)))], -1)
+        # boots = torch.mean(-logw[torch.randint(len(x), size=(Nboot, len(x)))], -1)
+        # loss_mean = boots.mean()
+        # loss_stdr = boots.std()
+        logww = logw[torch.randint(len(x), size=(Nboot, len(x)))]
+        boots = -logww.mean(-1) + torch.logsumexp(logww, -1, keepdims=True) - torch.log(torch.tensor(len(logw)))
         loss_mean = boots.mean()
         loss_stdr = boots.std()
         
