@@ -106,6 +106,7 @@ def main(args):
         times = torch.arange(0.0, 1.0 + args.dt*0.9, args.dt)
 
         model.load_state_dict(torch.load(args.eval_path, weights_only=True))
+        model.eps = -args.eps
 
         results = eval_step(model, action, prior, times, integrator, "gmm", args.eps,
                        args.bs, args.num_noise, args.num_bootstrap)
