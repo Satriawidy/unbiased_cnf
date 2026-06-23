@@ -184,19 +184,30 @@ class Unet(torch.nn.Module):
         )
     
         self.init_std = 1e-5
-        self._init_module(self.input_net)
+        # self._init_module(self.input_net)
+        # for downer in self.downers:
+        #     self._init_module(downer)
+        # for upper in self.uppers:
+        #     self._init_module(upper)
+        # self._init_module(self.output_net)
+        self.input_net.apply(self._init_module)
         for downer in self.downers:
-            self._init_module(downer)
+            downer.apply(self._init_module)
         for upper in self.uppers:
-            self._init_module(upper)
-        self._init_module(self.output_net)
+            upper.apply(self._init_module)
+        self.output_net.apply(self._init_module)
 
-    def _init_module(self, module, *, final: bool = False):
-        std = self.final_init_std if final else self.init_std
-        nn.init.normal_(module.weight, mean=0.0, std=std)
-        if module.bias is not None:
-            nn.init.zeros_(module.bias)
-
+    def _init_module(self, m, *, final: bool = False):
+        if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
+            nn.init.normal_(m.weight.data, mean=0.0, std=0.01)
+            if m.bias is not None:
+                nn.init.zeros_(m.bias.data, 0.0)
+                
+        # Optional: Initialize BatchNorm layers if your U-Net uses them
+        elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+            nn.init.constant_(m.weight.data, 1.0)
+            nn.init.constant_(m.bias.data, 0.0)
+        
     def forward(self, x):
         x = self.input_net(x)
         xi = [x]
