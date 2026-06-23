@@ -219,8 +219,12 @@ def build_parser():
                         default="phi4analytic",
                         choices=["phi4analytic", "unet"])
     
-    parser.add_argument("--unet-hidden", type=int, default=21, help="Hidden sizes for UNET.")
-
+    parser.add_argument("--unet-hidden",
+                        type=int,
+                        nargs="+",
+                        default=[16],
+                        help="Hidden sizes for unet.",
+    )
     parser.add_argument("--n-kernel", type=int, default=21, help="Number of Fourier kernels for phi4analytic.")
     parser.add_argument("--n-kernel-bond", type=int, default=20, help="Number of Fourier kernel bonds for phi4analytic.")
     parser.add_argument("--n-basis", type=int, default=20, help="Number of field expansion basis for phi4analytic.")
