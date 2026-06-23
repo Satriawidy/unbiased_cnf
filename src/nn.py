@@ -182,6 +182,20 @@ class Unet(torch.nn.Module):
                 config.hidden_sizes[-1], 2*config.hidden_sizes[-1],
                 kernel=config.kernel_size, Nd=config.Nd)
         )
+    
+        self.init_std = 1e-5
+        self._init_module(self.input_net)
+        for downer in self.downers:
+            self._init_module(downer)
+        for upper in self.uppers:
+            self._init_module(upper)
+        self._init_module(self.output_net)
+
+    def _init_module(self, module, *, final: bool = False):
+        std = self.final_init_std if final else self.init_std
+        nn.init.normal_(module.weight, mean=0.0, std=std)
+        if module.bias is not None:
+            nn.init.zeros_(module.bias)
 
     def forward(self, x):
         x = self.input_net(x)
