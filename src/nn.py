@@ -201,7 +201,7 @@ class Unet(torch.nn.Module):
         if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
             nn.init.normal_(m.weight.data, mean=0.0, std=0.01)
             if m.bias is not None:
-                nn.init.zeros_(m.bias.data, 0.0)
+                nn.init.constant_(m.bias.data, 0.0)
                 
         # Optional: Initialize BatchNorm layers if your U-Net uses them
         elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
