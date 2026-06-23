@@ -148,6 +148,145 @@ class PHIAnalyticUnbias(nn.Module):
                 else:
                     return dx[0], -dlogJ
 
+class Unet(torch.nn.Module):
+    def __init__(self, n_in, n_out, config):
+        super().__init__()
+        self.input_net = torch.nn.Sequential(
+            # torch.nn.InstanceNorm1d(n_in),
+            make_conv_net(
+                n_in, config.hidden_sizes[0],
+                kernel=config.kernel_size, Nd=config.Nd),
+            torch.nn.SiLU(),
+        )
+        self.output_net = torch.nn.Sequential(
+            # torch.nn.InstanceNorm1d(2*config.hidden_sizes[0]),
+            make_conv_net(
+                2*config.hidden_sizes[0], n_out,
+                kernel=config.kernel_size, Nd=config.Nd))
+        # (hidden_i, L_i) -> (hidden_{i+1}, L_{i+1}), L_{i+1} = L_i//2
+        self.downers = torch.nn.ModuleList([
+            make_down_sample(
+                config.hidden_sizes[i-1], config.hidden_sizes[i],
+                kernel=config.kernel_size, Nd=config.Nd)
+            for i in range(1, len(config.hidden_sizes))
+        ])
+        # (hidden_{i+1}, L_{i+1}) -> (hidden_i, L_i)
+        self.uppers = torch.nn.ModuleList([
+            make_up_sample(
+                2*config.hidden_sizes[i], config.hidden_sizes[i-1],
+                kernel=config.kernel_size, Nd=config.Nd)
+            for i in range(1, len(config.hidden_sizes))
+        ])
+        self.bottom = torch.nn.Sequential(
+            make_conv_net(
+                config.hidden_sizes[-1], 2*config.hidden_sizes[-1],
+                kernel=config.kernel_size, Nd=config.Nd)
+        )
+
+    def forward(self, x):
+        x = self.input_net(x)
+        xi = [x]
+        for downer in self.downers:
+            xi.append(downer(xi[-1]))
+        xp = self.bottom(xi[-1])
+        for i,upper in reversed(list(enumerate(self.uppers))):
+            xp = torch.cat((upper(xp), xi[i]), dim=1)
+        return self.output_net(xp)
+
+def make_avg_pool(Nd):
+    cls = {
+        1: torch.nn.AvgPool1d,
+        2: torch.nn.AvgPool2d,
+        3: torch.nn.AvgPool3d,
+    }[Nd]
+    return cls(kernel_size=2)
+
+def make_conv_net(in_ch, out_ch, *, kernel, Nd):
+    assert kernel % 2 == 1, 'kernel must have odd size'
+    pad = kernel//2
+    cls = {
+        1: torch.nn.Conv1d,
+        2: torch.nn.Conv2d,
+        3: torch.nn.Conv3d,
+    }[Nd]
+    return cls(in_ch, out_ch, kernel, padding=pad, padding_mode='circular')
+
+def make_conv_net_transpose(in_ch, out_ch, *, Nd):
+    cls = {
+        1: torch.nn.ConvTranspose1d,
+        2: torch.nn.ConvTranspose2d,
+        3: torch.nn.ConvTranspose3d,
+    }[Nd]
+    return cls(in_ch, out_ch, kernel_size=2, stride=2)
+
+def make_down_sample(in_ch, out_ch, *, kernel, Nd):
+    return torch.nn.Sequential(
+        make_avg_pool(Nd),
+        make_conv_net(in_ch, out_ch, kernel=kernel, Nd=Nd),
+        torch.nn.SiLU(),
+    )
+
+def make_up_sample(in_ch, out_ch, *, kernel, Nd):
+    return torch.nn.Sequential(
+        make_conv_net_transpose(in_ch, out_ch, Nd=Nd),
+        make_conv_net(out_ch, out_ch, kernel=kernel, Nd=Nd),
+        torch.nn.SiLU(),
+    )
+
+
+class Config:
+    def __init__(self, Nd, hidden_sizes, kernel_size):
+        self.Nd = Nd
+        self.hidden_sizes = hidden_sizes
+        self.kernel_size = kernel_size
+
+class DriftUnet(nn.Module):
+    def __init__(self, hidden, hutch=1, eps = 0, fourier = 21, config = None):
+        super().__init__()
+        
+        self.n = fourier
+        if config == None:
+            config = Config(2, hidden, 3)
+        self.layers = Unet(2 + fourier - 1, 2, config)
+        self.eps = eps
+        self.hutch = hutch
+        self.T = 1.0
+
+    def forward(self, T, state, reverse=False, div = "hutch", eps=0):
+        def single_drift(x, t):
+            K = FourierKernel(t, self.T, self.n)
+            inp = torch.concat((x.unsqueeze(0),
+                                K.repeat(x.shape + (1, )).swapdims(0, 2),
+                                ), dim=0)
+            return self.layers(inp.unsqueeze(0))
+        
+        with torch.set_grad_enabled(True):
+            if div == "hutch":
+                state[0].requires_grad_(True)
+            jvp_x = vmap(single_drift, in_dims=(0, 0), out_dims=(0), 
+                            randomness='different')(state[0], T.repeat(len(state[0]))).squeeze()
+                
+            if div == "None":
+                if reverse == True:
+                    return jvp_x[:,0] + self.eps * jvp_x[:,1]
+                else:
+                    return jvp_x[:,0] - self.eps * jvp_x[:,1]
+            elif div == "exact":
+                dlogJ = vmap(jacfwd(single_drift, argnums=0), out_dims=(0), 
+                             randomness='different')(state[0], T.repeat(len(state[0]))).squeeze()
+                dlogJ = torch.einsum('ijklkl -> ji', dlogJ)
+                if reverse == True:
+                    return jvp_x[:,0], -dlogJ[0]
+                else:
+                    return jvp_x[:,0], -dlogJ[0]
+            elif div == "hutch":
+                epsilon = torch.randn((self.hutch, ) + state[0].shape)
+                jvp = torch.autograd.grad(jvp_x[:, 0], state[0], epsilon, allow_unused=True,create_graph=True,is_grads_batched=True)[0]
+                dlogJ = torch.einsum('ba...,ba...->a', jvp, epsilon) / self.hutch
+                if reverse == True:
+                    return jvp_x[:,0], -dlogJ
+                else:
+                    return jvp_x[:,0], -dlogJ
 
 #----------------GMM vectorf field architecture----------------------#
 

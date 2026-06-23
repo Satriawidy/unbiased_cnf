@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 from datetime import datetime
 from theory import SimpleNormal, ScalarPhi4Action
-from nn import PHIAnalyticUnbias
+from nn import PHIAnalyticUnbias, DriftUnet
 from utils import join_paths
 from train import train_step
 from eval import eval_step
@@ -60,6 +60,11 @@ def main(args):
         else:
             model = PHIAnalyticUnbias(1.0, lattice_shape, args.n_kernel, args.n_kernel_bond, 
                                     args.n_basis, args.n_basis_bond, args.num_noise, 0)
+    if args.network == "unet":
+        if args.integrator == "unbiasv2":
+            model = DriftUnet(args.unet_hidden, args.num_noise, args.eps)
+        else:
+            model = DriftUnet(args.unet_hidden, args.num_noise, 0)
             
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.t_max_scheduler, eta_min=args.lr_min)
@@ -117,6 +122,7 @@ def main(args):
                 "bs": args.bs,
                 "integrator": args.integrator,
                 "num_noise": args.num_noise,
+                "unet_hidden": args.unet_hidden,
                 "n_kernel": args.n_kernel,
                 "n_kernel_bond": args.n_kernel_bond,
                 "n_basis": args.n_basis,
@@ -151,6 +157,7 @@ def main(args):
                 "bs",
                 "integrator",
                 "num_noise",
+                "unet_hidden",
                 "n_kernel",
                 "n_kernel_bond",
                 "n_basis",
@@ -210,8 +217,10 @@ def build_parser():
     parser.add_argument("--network", 
                         type=str, 
                         default="phi4analytic",
-                        choices=["phi4analytic"])
+                        choices=["phi4analytic", "unet"])
     
+    parser.add_argument("--unet-hidden", type=int, default=21, help="Hidden sizes for UNET.")
+
     parser.add_argument("--n-kernel", type=int, default=21, help="Number of Fourier kernels for phi4analytic.")
     parser.add_argument("--n-kernel-bond", type=int, default=20, help="Number of Fourier kernel bonds for phi4analytic.")
     parser.add_argument("--n-basis", type=int, default=20, help="Number of field expansion basis for phi4analytic.")
